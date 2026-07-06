@@ -1,0 +1,4 @@
+node_modules/
+.env
+data/penalties.json
+assets/qr.png
