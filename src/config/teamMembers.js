@@ -5,7 +5,7 @@ const TEAM_MEMBERS = [
     confluenceAccountId: "712020:2b18ac31-bd38-45a0-9d0f-b413fa183725",
   },
   {
-    discordId: "DISCORD_USER_ID_MINH_LUAN",
+    discordId: "756520490113302650",
     displayName: "Nguyễn Minh Luân",
     confluenceAccountId: "712020:dfdd5e79-6ea0-4832-93d4-91afe451fe4b",
   },
