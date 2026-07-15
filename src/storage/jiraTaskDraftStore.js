@@ -5,6 +5,7 @@ const { env } = require("../config/env");
 function initialState() {
   return {
     processedSourceMessageIds: [],
+    inFlightSourceMessageIds: [],
     drafts: [],
   };
 }
@@ -24,11 +25,52 @@ function loadJiraDraftState() {
   }
 
   try {
-    return JSON.parse(fs.readFileSync(env.JIRA_DRAFT_STATE_FILE, "utf8"));
+    const parsed = JSON.parse(fs.readFileSync(env.JIRA_DRAFT_STATE_FILE, "utf8"));
+    return {
+      processedSourceMessageIds: parsed.processedSourceMessageIds || [],
+      inFlightSourceMessageIds: parsed.inFlightSourceMessageIds || [],
+      drafts: parsed.drafts || [],
+    };
   } catch (error) {
     console.error("Cannot read jira-task-drafts.json:", error.message);
     return initialState();
   }
+}
+
+function claimSourceMessage(messageId) {
+  const state = loadJiraDraftState();
+
+  if (
+    state.processedSourceMessageIds.includes(messageId) ||
+    state.inFlightSourceMessageIds.includes(messageId)
+  ) {
+    return false;
+  }
+
+  state.inFlightSourceMessageIds.push(messageId);
+  saveJiraDraftState(state);
+  return true;
+}
+
+function releaseSourceMessageClaim(messageId) {
+  const state = loadJiraDraftState();
+  state.inFlightSourceMessageIds = state.inFlightSourceMessageIds.filter(
+    (id) => id !== messageId,
+  );
+  saveJiraDraftState(state);
+}
+
+function markSourceMessageProcessed(messageId) {
+  const state = loadJiraDraftState();
+
+  if (!state.processedSourceMessageIds.includes(messageId)) {
+    state.processedSourceMessageIds.push(messageId);
+  }
+
+  state.inFlightSourceMessageIds = state.inFlightSourceMessageIds.filter(
+    (id) => id !== messageId,
+  );
+  saveJiraDraftState(state);
 }
 
 function saveJiraDraftState(state) {
@@ -78,4 +120,7 @@ module.exports = {
   getDraftById,
   updateDraftById,
   findLatestPendingDraftByNumber,
+  claimSourceMessage,
+  releaseSourceMessageClaim,
+  markSourceMessageProcessed,
 };

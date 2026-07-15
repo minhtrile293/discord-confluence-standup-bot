@@ -1,0 +1,98 @@
+- Implement UI App Platform: Landing Page + Home + Delivery Order Management @Au [10sp] 9/7
+  + Lên docs/design tương ứng của App Platform để xem layout, flow và convention trước khi làm
+  + Implement Landing Page (Page 7)
+  + Implement Trang chủ (Page 8)
+  + Implement Theo dõi đơn hàng (Page 32)
+  + Implement Chi tiết phiếu giao (Page 33)
+  + Implement Xác nhận đơn hàng (Page 34)
+  + Implement Quản lý phiếu trả (Page 35)
+  + Implement Chi tiết phiếu trả (Page 36)
+  + Research và xác định có cần màn hình Chỉnh sửa phiếu giao hàng / phiếu trả hay không
+  + Đảm bảo responsive tốt trên mobile
+  + Tách component dùng chung khi có thể
+  + Viết testing cho từng page phụ trách
+
+- Implement UI App Platform: Property + Product + Contract Management @Lê Trí [10sp] 9/7
+  + Lên docs/design tương ứng của App Platform để xem layout, flow và convention trước khi làm
+  + Implement Mặt bằng của tôi (Page 16)
+  + Implement Tạo / Chỉnh sửa mặt bằng (Page 17, 18)
+  + Sử dụng chung một template/form cho màn hình tạo và chỉnh sửa mặt bằng
+  + Implement Chi tiết mặt bằng (Page 19)
+  + Implement Sản phẩm của tôi (Page 20)
+  + Implement Tạo / Chỉnh sửa sản phẩm (Page 21)
+  + Sử dụng chung một template/form cho màn hình tạo và chỉnh sửa sản phẩm
+  + Implement Chi tiết sản phẩm (Page 22)
+  + Implement Danh sách hợp đồng (Page 27)
+  + Đảm bảo responsive tốt trên mobile
+  + Tách component và form field dùng chung khi có thể
+  + Viết testing cho từng page phụ trách
+
+- Implement UI App Platform: Inventory + Revenue + Record + Marketplace Management @Do Tri [10sp] 9/7
+  + Lên docs/design tương ứng của App Platform để xem layout, flow và convention trước khi làm
+  + Implement Lịch sử tồn kho (Page 38)
+  + Implement Dashboard doanh thu (Page 39)
+  + Implement Quản lý biên bản (Page 29)
+  + Implement Chi tiết biên bản (Page 30)
+  + Implement Tạo biên bản (Page 31)
+  + Tự design và implement màn hình Chỉnh sửa biên bản dựa trên flow và convention hiện tại
+  + Implement Marketplace (Page 23)
+  + Implement màn hình Quản lý (Page 9)
+  + Đảm bảo responsive tốt trên mobile
+  + Tách component dùng chung khi có thể
+  + Viết testing cho từng page phụ trách
+
+- Implement UI App Platform: Profile + Account Settings + eKYC @Luân [10sp] 9/7
+  + Lên docs/design tương ứng của App Platform để xem layout, flow và convention trước khi làm
+  + Implement Hồ sơ cá nhân (Page 10)
+  + Trong phần Cài đặt tài khoản, bổ sung UI cho luồng truy cập Lịch sử đánh giá
+  + Implement Chỉnh sửa hồ sơ (Page 11)
+  + Implement Lịch sử đánh giá (Page 12)
+  + Implement eKYC Verification (Page 15)
+  + Implement Account Setting (Page 13)
+  + Implement Đổi mật khẩu (Page 14)
+  + Tự design và implement màn hình Chọn ngôn ngữ
+  + Tự design và implement màn hình Trợ giúp và phản hồi
+  + Đảm bảo responsive tốt trên mobile
+  + Tách component, form và setting item dùng chung khi có thể
+  + Viết testing cho từng page phụ trách
+
+- Implement UI App Platform: Conversation + Messaging + Contract + Partner Interaction @Hà [10sp] 9/7
+  + Lên docs/design tương ứng của App Platform để xem layout, flow và convention trước khi làm
+  + Implement Hội thoại (Page 24)
+  + Implement Tạo / Chỉnh sửa hợp đồng (Page 25)
+  + Tái sử dụng chung một template/form cho luồng tạo và chỉnh sửa hợp đồng khi phù hợp
+  + Implement Danh sách hợp đồng (Page 27)
+  + Implement Hợp đồng với người cụ thể (Page 28)
+  + Implement Danh sách tin nhắn (Page 26)
+  + Không implement khu vực Story trong màn hình Danh sách tin nhắn
+  + Implement Đánh giá đối tác (Page 40)
+  + Implement Thành tựu đối tác (Page 41)
+  + Implement Tố cáo vi phạm (Page 42)
+  + Đảm bảo responsive tốt trên mobile
+  + Tách component dùng chung cho conversation, message và partner information khi có thể
+  + Viết testing cho từng page phụ trách
+
+- Define App Platform Layout + Setup Router @Luân [3sp] 9/7
+  + Lên docs/design tổng thể của App Platform để xác định layout structure và navigation flow
+  + Define layout chung cho toàn bộ App Platform
+  + Thiết lập router cho các page của App Platform
+  + Thiết lập nested routes nếu flow yêu cầu
+  + Đảm bảo route naming và folder structure theo convention của project
+  + Tạo route placeholder cho các page để các thành viên có thể phát triển song song
+  + Đảm bảo Header, Bottom Nav và nội dung page hoạt động đúng theo layout chung
+  + Kiểm tra navigation flow giữa các màn hình chính
+
+- Implement UI Web Portal: Dashboard + System Logs @Au [6sp] 9/7
+  + Lên docs/design tương ứng của Web Portal để xem layout, flow và convention trước khi làm
+  + Implement Dashboard [3sp]
+  + Implement Nhật ký hệ thống [3sp]
+  + Đảm bảo layout desktop responsive tốt
+  + Tách component dùng chung khi có thể
+  + Viết testing cho từng page phụ trách
+
+- Implement UI Web Portal: Dispute Management + Dispute Detail @Hà [8sp] 9/7
+  + Lên docs/design tương ứng của Web Portal để xem layout, flow và convention trước khi làm
+  + Implement Quản lý tranh chấp [3sp]
+  + Implement Chi tiết tranh chấp [5sp]
+  + Đảm bảo flow điều hướng giữa danh sách và trang chi tiết hoạt động đúng
+  + Đảm bảo layout desktop responsive tốt

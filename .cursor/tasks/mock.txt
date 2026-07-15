@@ -1,0 +1,119 @@
+- Implement UI App Platform: Landing Page + Home + Notification Hub @Au [8sp] 20/7
+  + Lên docs/design tương ứng của App Platform trước khi implement
+  + Implement Landing Page và các CTA chính
+  + Implement Trang chủ theo role người dùng
+  + Implement danh sách thông báo và badge chưa đọc
+  + Implement chi tiết thông báo và deep-link vào màn liên quan
+  + Tách layout shell dùng chung cho nhóm màn hình này
+  + Đảm bảo responsive tốt trên mobile
+  + Xử lý empty state và loading state đồng bộ
+  + Viết unit test cho các component chính
+  + Viết integration test cho flow mở thông báo từ trang chủ
+
+- Implement UI App Platform: Property + Product Catalog Management @Lê Trí [13sp] 20/7
+  + Lên docs/design Property và Product trước khi code
+  + Implement màn Mặt bằng của tôi
+  + Implement form Tạo / Chỉnh sửa mặt bằng dùng chung template
+  + Implement màn Chi tiết mặt bằng
+  + Implement màn Sản phẩm của tôi
+  + Implement form Tạo / Chỉnh sửa sản phẩm dùng chung template
+  + Implement màn Chi tiết sản phẩm
+  + Tách form field dùng chung giữa property và product
+  + Đảm bảo validation và error message rõ ràng
+  + Viết testing cho từng page phụ trách
+
+- Implement UI App Platform: Inventory + Revenue Dashboard @Do Tri [8sp] 20/7
+  + Lên docs/design Inventory và Revenue trước khi implement
+  + Implement Lịch sử tồn kho với filter theo thời gian
+  + Implement chi tiết biến động tồn kho
+  + Implement Dashboard doanh thu theo ngày / tuần / tháng
+  + Implement biểu đồ doanh thu và bảng breakdown
+  + Tách chart component dùng chung nếu có
+  + Đảm bảo responsive tốt trên desktop và mobile
+  + Xử lý trường hợp không có dữ liệu doanh thu
+  + Kiểm tra mapping đúng field API với UI
+  + Viết testing cho dashboard và inventory views
+
+- Implement UI App Platform: Profile + Account Settings + eKYC @Luân [10sp] 20/7
+  + Lên docs/design Profile và Account trước khi làm
+  + Implement Hồ sơ cá nhân
+  + Implement Chỉnh sửa hồ sơ và upload ảnh đại diện
+  + Implement Account Setting và đổi mật khẩu
+  + Implement eKYC Verification theo các bước hiện có
+  + Implement màn Lịch sử đánh giá từ phần cài đặt
+  + Tự design và implement màn Chọn ngôn ngữ
+  + Tự design và implement màn Trợ giúp và phản hồi
+  + Tách setting item component dùng chung
+  + Viết testing cho các luồng profile và eKYC
+
+- Implement UI App Platform: Conversation + Messaging + Partner Review @Hà [13sp] 20/7
+  + Lên docs/design Conversation và Messaging trước khi code
+  + Implement danh sách hội thoại và tìm kiếm partner
+  + Implement chi tiết hội thoại và gửi tin nhắn
+  + Implement danh sách tin nhắn (bỏ khu vực Story)
+  + Implement Đánh giá đối tác
+  + Implement Thành tựu đối tác
+  + Implement Tố cáo vi phạm với form gửi bằng chứng
+  + Tách message bubble và partner info component dùng chung
+  + Đảm bảo realtime/update UI khi có tin nhắn mới nếu API hỗ trợ
+  + Viết testing cho conversation và partner interaction
+
+- Implement Backend API: Auth + Role-based Access Control @Hà [10sp] 20/7
+  + Define API Auth: input, output và description trên Swagger
+  + Implement đăng ký / đăng nhập và phát hành token
+  + Implement refresh token và revoke session
+  + Implement middleware phân quyền theo role
+  + Chuẩn hóa DTO, mapper và error response cho Auth
+  + Viết unit test cho service Auth và permission
+  + Viết integration test cho các endpoint Auth chính
+  + Bổ sung log audit cho hành động nhạy cảm
+  + Kiểm tra flow demo hoàn chỉnh Auth từ client tới API
+  + Cập nhật tài liệu API sau khi ổn định contract
+
+- Implement Backend API: Contract + Delivery Order Services @Do Tri [13sp] 20/7
+  + Define API Contract và Delivery Order trên Swagger
+  + Implement CRUD hợp đồng và validate trạng thái
+  + Implement tạo / cập nhật phiếu giao hàng
+  + Implement xác nhận đơn hàng và chuyển trạng thái
+  + Implement quản lý phiếu trả và chi tiết phiếu trả
+  + Chuẩn hóa repository, ORM mapping và service layer
+  + Viết test cho các business rule chuyển trạng thái
+  + Xử lý lỗi concurrent update khi đổi status
+  + Demo flow API hoàn chỉnh cho contract + delivery
+  + Rà soát performance query danh sách có phân trang
+
+- Implement Backend API: Marketplace + Dispute Management @Lê Trí [8sp] 20/7
+  + Define API Marketplace và Dispute trên Swagger
+  + Implement danh sách marketplace với filter cơ bản
+  + Implement chi tiết listing và dữ liệu liên quan partner
+  + Implement tạo tranh chấp và upload bằng chứng
+  + Implement chi tiết tranh chấp và đổi trạng thái xử lý
+  + Chuẩn hóa DTO + mapper cho dispute payload
+  + Viết unit test cho rule chuyển trạng thái tranh chấp
+  + Viết integration test cho endpoint marketplace chính
+  + Kiểm tra phân quyền ai được tạo / xem dispute
+  + Cập nhật mô tả API input/output cho team frontend
+
+- Setup Database Neon + Migration Cleanup @Luân [5sp] 20/7
+  + Review schema hiện tại và liệt kê table cần giữ
+  + Setup database trên Neon cho môi trường dev
+  + Thêm các table và thuộc tính còn thiếu theo domain
+  + Xóa các table / column dư thừa không còn dùng
+  + Viết migration rõ ràng, có thể rollback nếu cần
+  + Seed dữ liệu mẫu tối thiểu cho demo flow
+  + Kiểm tra quan hệ FK giữa contract, order và user
+  + Đồng bộ naming convention table/column với backend
+  + Kiểm tra kết nối ORM tới Neon thành công
+  + Ghi lại checklist schema cuối cùng cho team
+
+- CI/CD + Testing Pipeline cho Backend và Frontend @Au [5sp] 20/7
+  + Chọn tool test phù hợp cho backend và frontend
+  + Viết workflow GitHub Actions chạy lint cho cả hai phía
+  + Thêm job chạy unit test backend trên CI
+  + Thêm job chạy unit test frontend trên CI
+  + Cache dependency để giảm thời gian pipeline
+  + Fail pipeline khi coverage hoặc test quan trọng fail
+  + Thêm badge / log rõ ràng để dễ debug trên PR
+  + Tài liệu hóa cách chạy test local tương đương CI
+  + Kiểm tra pipeline với PR mẫu có lỗi cố ý
+  + Chốt checklist DoD cho merge khi CI xanh

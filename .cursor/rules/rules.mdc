@@ -1,0 +1,71 @@
+---
+description: Chuyển draft standup thành file task Jira đúng format khi user yêu cầu "viết task"
+alwaysApply: true
+---
+
+# Viết task Jira từ draft
+
+Khi user nhờ **viết task** (hoặc tương đương: tạo task, generate task từ draft):
+
+1. Đọc file draft trong `.cursor/drafts/` mà user chỉ định (hoặc file draft đang mở / mới nhất nếu không chỉ định).
+2. Viết file **`.txt`** vào `.cursor/tasks/` với **cùng tên gốc** (vd: `13-7.md` → `.cursor/tasks/13-7.txt`). Không tạo `.md` trong `.cursor/tasks/`.
+3. Toàn bộ nội dung task/subtask viết bằng **tiếng Việt** (có thể giữ tên kỹ thuật/page number tiếng Anh nếu draft dùng vậy).
+4. Tham chiếu format chuẩn: `.cursor/tasks/sample.txt`.
+
+## Format bắt buộc
+
+- Task: dòng bắt đầu bằng `- `
+- Subtask: dòng bắt đầu bằng `  + ` (2 spaces + `+`)
+- Mỗi task kết thúc bằng: `@<assignee> [<story point>] <deadline>`
+- Thứ tự metadata trên task: `@assignee` → `[Nsp]` → `deadline`
+- Subtask có thể có `[Nsp]` riêng nếu cần tách điểm; không bắt buộc `@assignee` / deadline trên subtask trừ khi draft nêu rõ
+
+### Ví dụ đúng
+
+```markdown
+- Implement UI App Platform: Landing Page + Home @Au [10sp] 9/7
+  + Lên docs/design tương ứng trước khi làm
+  + Implement Landing Page (Page 7)
+  + Viết testing cho từng page phụ trách
+```
+
+### Ví dụ sai
+
+```markdown
+- Task chưa có assignee
+- Task @Someone [5] 9/7          # sai tên, thiếu "sp"
+- Task @Au 10sp 9/7              # thiếu ngoặc vuông
+* Task dạng bullet khác          # chỉ dùng - và +
+```
+
+## Assignee (bắt buộc đúng 1 trong 5)
+
+Chỉ được dùng đúng một trong các handle sau (khớp từng ký tự):
+
+- `@Au`
+- `@Lê Trí`
+- `@Do Tri`
+- `@Luân`
+- `@Hà`
+
+Không viết biến thể (`@Le Tri`, `@DoTrí`, `@Luan`, …). Nếu draft mơ hồ, hỏi user hoặc suy luận theo ngữ cảnh rồi vẫn map về đúng 1 trong 5 tên trên.
+
+## Story point
+
+- Format: `[Nsp]` (vd: `[3sp]`, `[10sp]`).
+- Nếu draft đã có điểm → giữ nguyên.
+- Nếu thiếu → tự ước lượng theo độ phức tạp / số subtask / phạm vi UI-API, làm tròn số hợp lý (1, 2, 3, 5, 8, 13…).
+- Task lớn có nhiều màn hình thường 8–13sp; task setup/layout nhỏ thường 2–5sp.
+
+## Deadline
+
+- Format ngắn như sample: `d/m` hoặc `dd/mm` (vd: `9/7`, `13/7`).
+- Lấy từ draft; nếu thiếu thì hỏi user trước khi ghi file (không bịa deadline).
+
+## Quy trình khi "viết task"
+
+1. Đọc draft → tách thành các task và subtask rõ ràng.
+2. Gán assignee đúng 1/5 tên; ước lượng SP nếu thiếu; giữ/điền deadline.
+3. Ghi đè hoặc tạo `.cursor/tasks/<cùng-tên-gốc-draft>.txt` (luôn dùng đuôi `.txt`, không dùng `.md`).
+4. Không sửa bot up-Jira hay file khác trừ khi user yêu cầu.
+5. Sau khi xong, báo đường dẫn file đã tạo và tóm tắt ngắn (số task, ai làm gì).

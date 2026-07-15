@@ -1,10 +1,17 @@
-require("dotenv").config();
+require("dotenv").config({ override: true });
 const path = require("path");
 
 function toNumber(value, fallback = null) {
   if (value === undefined || value === null || value === "") return fallback;
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function cleanEnvString(value) {
+  if (value === undefined || value === null) return "";
+  return String(value)
+    .replace(/\s+#.*$/, "")
+    .trim();
 }
 
 const env = {
@@ -18,7 +25,20 @@ const env = {
   CONFLUENCE_EMAIL: process.env.CONFLUENCE_EMAIL,
   CONFLUENCE_API_TOKEN: process.env.CONFLUENCE_API_TOKEN,
 
-  GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+  OPENAI_API_KEY: cleanEnvString(
+    process.env.OPENAI_API_KEY || process.env.GITHUB_TOKEN,
+  ),
+  OPENAI_BASE_URL: cleanEnvString(
+    process.env.OPENAI_BASE_URL ||
+      "https://models.inference.ai.azure.com",
+  ),
+  OPENAI_MODEL: process.env.OPENAI_MODEL || "gpt-4o-mini",
+
+  GEMINI_API_KEY: cleanEnvString(
+    process.env.GEMINI_API_KEY ||
+      process.env.GEMINI_API_KEY_C ||
+      process.env.GEMINI_API_KEY_A,
+  ),
   GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-3.5-flash",
 
   JIRA_BASE_URL: process.env.JIRA_BASE_URL,

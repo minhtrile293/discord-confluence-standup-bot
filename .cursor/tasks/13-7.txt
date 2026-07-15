@@ -1,0 +1,25 @@
+- Leader Frontend: Chỉnh UI theo role và rà soát màn hình @Lê Trí [5sp] 13/7
+  + Chỉnh sửa lại UI sao cho phù hợp với từng role
+  + Kiểm tra màn hình nào cần thiết, màn hình nào không cần
+  + Tổng hợp danh sách màn hình giữ lại / loại bỏ và cập nhật cho team
+
+- Tổ chức Frontend theo role (folder + design pattern) @Au [2sp] 13/7
+  + Tổ chức folder: Chủ sản phẩm có folder riêng, Chủ mặt bằng có folder riêng
+  + Đề xuất và áp dụng design pattern linh hoạt cho từng role
+  + Đảm bảo cấu trúc folder dễ mở rộng khi thêm role mới
+
+- Leader Backend: Fix lỗi, chuẩn hóa API layer và demo flow @Hà [5sp] 13/7
+  + Fix các lỗi hiện tại của backend
+  + Demo flow hoàn chỉnh các API chính
+  + Chuẩn hóa DTO, mapper, repository, ORM, controller, service
+  + Bổ sung / cập nhật Swagger
+  + Define API: input, output, description rõ ràng
+  + Tìm hiểu phạm vi test backend cần viết và tool phù hợp, rồi viết test
+  + Viết CI cho backend trên GitHub Actions
+
+- Setup Database trên Neon @Luân [3sp] 13/7
+  + Setup database trên Neon
+  + Chỉ thêm các table và thuộc tính cần thiết
+  + Xóa các table dư thừa
+
+- [Discord Bot] Tự chuyển qua API Key khác khi bị rate limit @Au [1sp] 13/7

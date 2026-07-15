@@ -1,18 +1,75 @@
+const OpenAI = require("openai");
 const { env } = require("../config/env");
 const { getLlmMemberDirectory } = require("../config/jiraMembers");
+const {
+  maskSecret,
+  logLlmInfo,
+  logLlmSuccess,
+  logLlmError,
+} = require("../utils/llmLogger");
 
-let cachedClient = null;
+let cachedGeminiClient = null;
+let cachedOpenAiClient = null;
 
-async function getGeminiClient() {
-  if (cachedClient) return cachedClient;
+// Mỗi provider: gọi 1 lần + retry tối đa 1 lần (SDK), rồi mới fallback provider khác.
+const LLM_MAX_RETRIES = 1;
 
-  const { GoogleGenAI } = await import("@google/genai");
+const GEMINI_REQUEST_OPTIONS = {
+  maxRetries: LLM_MAX_RETRIES,
+};
 
-  cachedClient = new GoogleGenAI({
-    apiKey: env.GEMINI_API_KEY,
+function logLlmStartupConfig() {
+  logLlmInfo("Startup LLM config", {
+    primary: {
+      provider: "github-models/openai-compatible",
+      model: env.OPENAI_MODEL,
+      baseURL: env.OPENAI_BASE_URL,
+      apiKeyConfigured: Boolean(env.OPENAI_API_KEY),
+      apiKey: env.OPENAI_API_KEY ? maskSecret(env.OPENAI_API_KEY) : null,
+    },
+    fallback: {
+      provider: "gemini",
+      model: env.GEMINI_MODEL,
+      apiKeyConfigured: Boolean(env.GEMINI_API_KEY),
+      apiKey: env.GEMINI_API_KEY ? maskSecret(env.GEMINI_API_KEY) : null,
+    },
+    sdkMaxRetriesPerProvider: LLM_MAX_RETRIES,
+    batchSize: env.LLM_TASK_BATCH_SIZE,
+    maxTasksPerMeetingNote: env.MAX_TASKS_PER_MEETING_NOTE,
+    order: ["github-models (gpt-4o-mini)", "gemini"],
   });
 
-  return cachedClient;
+  if (!env.OPENAI_API_KEY) {
+    console.warn(
+      "[LLM][WARN] OPENAI_API_KEY / GITHUB_TOKEN is empty. GPT primary will be skipped until you set it.",
+    );
+  }
+}
+
+async function getGeminiClient() {
+  if (cachedGeminiClient) return cachedGeminiClient;
+
+  const { GoogleGenAI } = await import("@google/genai");
+  cachedGeminiClient = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+  return cachedGeminiClient;
+}
+
+function getOpenAiClient() {
+  if (!env.OPENAI_API_KEY) {
+    throw new Error(
+      "OPENAI_API_KEY (GitHub PAT) is not configured for GitHub Models.",
+    );
+  }
+
+  if (cachedOpenAiClient) return cachedOpenAiClient;
+
+  cachedOpenAiClient = new OpenAI({
+    apiKey: env.OPENAI_API_KEY,
+    baseURL: env.OPENAI_BASE_URL,
+    maxRetries: LLM_MAX_RETRIES,
+  });
+
+  return cachedOpenAiClient;
 }
 
 function buildRawTaskPayload(rawTasks) {
@@ -71,10 +128,12 @@ const JiraTasksResponseSchema = {
           "definitionOfDone",
           "subtasks",
         ],
+        additionalProperties: false,
       },
     },
   },
   required: ["tasks"],
+  additionalProperties: false,
 };
 
 const RevisedJiraTaskSchema = {
@@ -116,14 +175,17 @@ const RevisedJiraTaskSchema = {
     "storyPoint",
     "dueDate",
   ],
+  additionalProperties: false,
 };
 
-function safeJsonParse(text) {
+function safeJsonParse(text, providerLabel) {
   try {
     return JSON.parse(text);
   } catch (error) {
-    console.error("Gemini raw output:", text);
-    throw new Error("Gemini returned invalid JSON.");
+    logLlmError(`${providerLabel} returned invalid JSON`, error, {
+      rawOutput: text,
+    });
+    throw new Error(`${providerLabel} returned invalid JSON.`);
   }
 }
 
@@ -171,11 +233,10 @@ function normalizeRevisedTask(task, existingTask) {
   };
 }
 
-async function generateJiraTasksWithLLM(rawTasks) {
-  const client = await getGeminiClient();
+function buildGenerateTasksPrompt(rawTasks) {
   const memberDirectory = getLlmMemberDirectory();
 
-  const prompt = `Bạn là Business Analyst/Scrum assistant cho một dự án phần mềm.
+  return `Bạn là Business Analyst/Scrum assistant cho một dự án phần mềm.
 
 Nhiệm vụ:
 - Biến danh sách việc cần làm sau meeting thành Jira-ready tasks.
@@ -200,32 +261,10 @@ ${JSON.stringify(memberDirectory, null, 2)}
 
 Raw tasks:
 ${JSON.stringify(buildRawTaskPayload(rawTasks), null, 2)}`;
-
-  const interaction = await client.interactions.create({
-    model: env.GEMINI_MODEL,
-    input: prompt,
-    response_format: {
-      type: "text",
-      mime_type: "application/json",
-      schema: JiraTasksResponseSchema,
-    },
-  });
-
-  const parsed = safeJsonParse(interaction.output_text);
-
-  if (!parsed.tasks || !Array.isArray(parsed.tasks)) {
-    throw new Error("Gemini response missing tasks array.");
-  }
-
-  return parsed.tasks.map((task, index) =>
-    normalizeGeneratedTask(task, index + 1),
-  );
 }
 
-async function reviseJiraTaskWithLLM(existingTask, editInstruction) {
-  const client = await getGeminiClient();
-
-  const prompt = `Bạn là assistant chỉnh sửa Jira task draft.
+function buildReviseTaskPrompt(existingTask, editInstruction) {
+  return `Bạn là assistant chỉnh sửa Jira task draft.
 
 Hãy cập nhật task theo yêu cầu người dùng.
 - Trả về tiếng Việt.
@@ -239,23 +278,282 @@ ${JSON.stringify(existingTask, null, 2)}
 
 Yêu cầu chỉnh sửa:
 ${editInstruction}`;
+}
 
-  const interaction = await client.interactions.create({
-    model: env.GEMINI_MODEL,
-    input: prompt,
+async function generateWithOpenAI(rawTasks, prompt) {
+  const client = getOpenAiClient();
+
+  logLlmInfo("generateJiraTasks OpenAI request", {
+    provider: "github-models",
+    baseURL: env.OPENAI_BASE_URL,
+    model: env.OPENAI_MODEL,
+    taskCount: rawTasks.length,
+    promptChars: prompt.length,
+    promptPreview: prompt.slice(0, 500),
+  });
+
+  const completion = await client.chat.completions.create({
+    model: env.OPENAI_MODEL,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You return only valid JSON that matches the provided schema. No markdown.",
+      },
+      { role: "user", content: prompt },
+    ],
     response_format: {
-      type: "text",
-      mime_type: "application/json",
-      schema: RevisedJiraTaskSchema,
+      type: "json_schema",
+      json_schema: {
+        name: "jira_tasks_response",
+        strict: true,
+        schema: JiraTasksResponseSchema,
+      },
     },
   });
 
-  const parsed = safeJsonParse(interaction.output_text);
+  const content = completion.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error("OpenAI returned empty content.");
+  }
 
+  logLlmInfo("generateJiraTasks OpenAI raw response", {
+    model: env.OPENAI_MODEL,
+    outputChars: content.length,
+    outputPreview: content.slice(0, 800),
+  });
+
+  const parsed = safeJsonParse(content, "OpenAI");
+
+  if (!parsed.tasks || !Array.isArray(parsed.tasks)) {
+    throw new Error("OpenAI response missing tasks array.");
+  }
+
+  return parsed.tasks.map((task, index) =>
+    normalizeGeneratedTask(task, index + 1),
+  );
+}
+
+async function reviseWithOpenAI(existingTask, editInstruction, prompt) {
+  const client = getOpenAiClient();
+
+  logLlmInfo("reviseJiraTask OpenAI request", {
+    provider: "github-models",
+    baseURL: env.OPENAI_BASE_URL,
+    model: env.OPENAI_MODEL,
+    editInstruction,
+    promptChars: prompt.length,
+    existingTitle: existingTask?.title,
+  });
+
+  const completion = await client.chat.completions.create({
+    model: env.OPENAI_MODEL,
+    messages: [
+      {
+        role: "system",
+        content:
+          "You return only valid JSON that matches the provided schema. No markdown.",
+      },
+      { role: "user", content: prompt },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "revised_jira_task",
+        strict: true,
+        schema: RevisedJiraTaskSchema,
+      },
+    },
+  });
+
+  const content = completion.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error("OpenAI returned empty content.");
+  }
+
+  logLlmInfo("reviseJiraTask OpenAI raw response", {
+    model: env.OPENAI_MODEL,
+    outputChars: content.length,
+    outputPreview: content.slice(0, 800),
+  });
+
+  const parsed = safeJsonParse(content, "OpenAI");
   return normalizeRevisedTask(parsed, existingTask);
+}
+
+async function generateWithGemini(rawTasks, prompt) {
+  const client = await getGeminiClient();
+
+  logLlmInfo("generateJiraTasks Gemini request", {
+    model: env.GEMINI_MODEL,
+    taskCount: rawTasks.length,
+    promptChars: prompt.length,
+    promptPreview: prompt.slice(0, 500),
+  });
+
+  const interaction = await client.interactions.create(
+    {
+      model: env.GEMINI_MODEL,
+      input: prompt,
+      response_format: {
+        type: "text",
+        mime_type: "application/json",
+        schema: JiraTasksResponseSchema,
+      },
+    },
+    GEMINI_REQUEST_OPTIONS,
+  );
+
+  const outputText = interaction.output_text;
+
+  logLlmInfo("generateJiraTasks Gemini raw response", {
+    model: env.GEMINI_MODEL,
+    outputChars: outputText ? String(outputText).length : 0,
+    outputPreview: String(outputText || "").slice(0, 800),
+  });
+
+  const parsed = safeJsonParse(outputText, "Gemini");
+
+  if (!parsed.tasks || !Array.isArray(parsed.tasks)) {
+    throw new Error("Gemini response missing tasks array.");
+  }
+
+  return parsed.tasks.map((task, index) =>
+    normalizeGeneratedTask(task, index + 1),
+  );
+}
+
+async function reviseWithGemini(existingTask, editInstruction, prompt) {
+  const client = await getGeminiClient();
+
+  logLlmInfo("reviseJiraTask Gemini request", {
+    model: env.GEMINI_MODEL,
+    editInstruction,
+    promptChars: prompt.length,
+    existingTitle: existingTask?.title,
+  });
+
+  const interaction = await client.interactions.create(
+    {
+      model: env.GEMINI_MODEL,
+      input: prompt,
+      response_format: {
+        type: "text",
+        mime_type: "application/json",
+        schema: RevisedJiraTaskSchema,
+      },
+    },
+    GEMINI_REQUEST_OPTIONS,
+  );
+
+  const outputText = interaction.output_text;
+
+  logLlmInfo("reviseJiraTask Gemini raw response", {
+    model: env.GEMINI_MODEL,
+    outputChars: outputText ? String(outputText).length : 0,
+    outputPreview: String(outputText || "").slice(0, 800),
+  });
+
+  const parsed = safeJsonParse(outputText, "Gemini");
+  return normalizeRevisedTask(parsed, existingTask);
+}
+
+async function withProviderFallback(operationName, openAiFn, geminiFn, context = {}) {
+  const errors = [];
+
+  logLlmInfo(`${operationName} start`, {
+    order: ["openai", "gemini"],
+    sdkMaxRetriesPerProvider: LLM_MAX_RETRIES,
+    ...context,
+  });
+
+  if (env.OPENAI_API_KEY) {
+    const startedAt = Date.now();
+    try {
+      logLlmInfo(`${operationName} trying OpenAI`, {
+        model: env.OPENAI_MODEL,
+        ...context,
+      });
+      const result = await openAiFn();
+      logLlmSuccess(`${operationName} succeeded with OpenAI`, {
+        model: env.OPENAI_MODEL,
+        durationMs: Date.now() - startedAt,
+        ...context,
+      });
+      return result;
+    } catch (error) {
+      logLlmError(`${operationName} failed on OpenAI`, error, {
+        model: env.OPENAI_MODEL,
+        durationMs: Date.now() - startedAt,
+        ...context,
+      });
+      errors.push(`OpenAI: ${error?.message || String(error)}`);
+    }
+  } else {
+    logLlmInfo(`${operationName} skipping OpenAI (no OPENAI_API_KEY)`, context);
+  }
+
+  const geminiStartedAt = Date.now();
+  try {
+    logLlmInfo(`${operationName} trying Gemini fallback`, {
+      model: env.GEMINI_MODEL,
+      ...context,
+    });
+    const result = await geminiFn();
+    logLlmSuccess(`${operationName} succeeded with Gemini`, {
+      model: env.GEMINI_MODEL,
+      durationMs: Date.now() - geminiStartedAt,
+      ...context,
+    });
+    return result;
+  } catch (error) {
+    logLlmError(`${operationName} failed on Gemini`, error, {
+      model: env.GEMINI_MODEL,
+      durationMs: Date.now() - geminiStartedAt,
+      ...context,
+    });
+    errors.push(`Gemini: ${error?.message || String(error)}`);
+  }
+
+  const finalError = new Error(
+    `${operationName} failed on OpenAI then Gemini. ${errors.join(" | ")}`,
+  );
+  logLlmError(`${operationName} exhausted all providers`, finalError, {
+    ...context,
+  });
+  throw finalError;
+}
+
+async function generateJiraTasksWithLLM(rawTasks) {
+  const prompt = buildGenerateTasksPrompt(rawTasks);
+
+  return withProviderFallback(
+    "generateJiraTasks",
+    () => generateWithOpenAI(rawTasks, prompt),
+    () => generateWithGemini(rawTasks, prompt),
+    {
+      taskCount: rawTasks.length,
+      titles: rawTasks.map((task) => task.rawTitle),
+    },
+  );
+}
+
+async function reviseJiraTaskWithLLM(existingTask, editInstruction) {
+  const prompt = buildReviseTaskPrompt(existingTask, editInstruction);
+
+  return withProviderFallback(
+    "reviseJiraTask",
+    () => reviseWithOpenAI(existingTask, editInstruction, prompt),
+    () => reviseWithGemini(existingTask, editInstruction, prompt),
+    {
+      existingTitle: existingTask?.title,
+      editInstruction,
+    },
+  );
 }
 
 module.exports = {
   generateJiraTasksWithLLM,
   reviseJiraTaskWithLLM,
+  logLlmStartupConfig,
 };

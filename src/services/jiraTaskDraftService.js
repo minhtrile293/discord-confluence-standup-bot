@@ -19,6 +19,8 @@ const {
   getDraftById,
   updateDraftById,
   findLatestPendingDraftByNumber,
+  claimSourceMessage,
+  releaseSourceMessageClaim,
 } = require("../storage/jiraTaskDraftStore");
 const {
   buildDraftPreviewPayload,
@@ -262,112 +264,148 @@ async function sendOrUpdatePreviewMessage(channel, draft) {
 async function handleMeetingNoteMessage(message) {
   const state = loadJiraDraftState();
 
-  if (state.processedSourceMessageIds.includes(message.id)) {
+  if (
+    state.processedSourceMessageIds.includes(message.id) ||
+    state.inFlightSourceMessageIds.includes(message.id)
+  ) {
     await message.reply(
-      "⚠️ Meeting note này đã được bot tạo draft trước đó rồi.",
+      "⚠️ Meeting note này bot đang xử lý hoặc đã tạo draft rồi.",
     );
     return;
   }
 
-  const rawTasks = await parseMeetingNoteTasks(message);
-
-  if (rawTasks.length === 0) {
+  // Claim ngay từ đầu để tránh double-run khi AI chạy lâu (~30s+).
+  if (!claimSourceMessage(message.id)) {
     await message.reply(
-      "⚠️ Không tìm thấy task nào. Mỗi task cha cần bắt đầu bằng `- `.",
+      "⚠️ Meeting note này bot đang xử lý hoặc đã tạo draft rồi.",
     );
     return;
   }
 
-  await message.reply(
-    `Đã nhận ${rawTasks.length} task. Mình đang gửi qua AI để tạo Jira draft...`,
-  );
-
-  let generatedTasks = [];
+  let claimed = true;
 
   try {
-    const batches = chunkArray(rawTasks, env.LLM_TASK_BATCH_SIZE || 8);
+    const rawTasks = await parseMeetingNoteTasks(message);
 
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
-      const batch = batches[batchIndex];
-
-      await message.channel.send(
-        `Đang xử lý AI batch ${batchIndex + 1}/${batches.length} (${batch.length} task)...`,
+    if (rawTasks.length === 0) {
+      await message.reply(
+        "⚠️ Không tìm thấy task nào. Mỗi task cha cần bắt đầu bằng `- `.",
       );
-
-      const batchGeneratedTasks = await generateJiraTasksWithLLM(batch);
-      const offset = batchIndex * (env.LLM_TASK_BATCH_SIZE || 8);
-
-      generatedTasks.push(
-        ...batchGeneratedTasks.map((task) => ({
-          ...task,
-          taskIndex: offset + task.taskIndex,
-        })),
-      );
+      return;
     }
-  } catch (error) {
-    console.error("LLM error:", error);
-    await message.reply("❌ AI lỗi, chưa tạo được Jira draft. Check log PM2.");
-    return;
-  }
 
-  const latestState = loadJiraDraftState();
-  const now = new Date().toISOString();
-  const drafts = [];
-
-  for (let i = 0; i < rawTasks.length; i += 1) {
-    const rawTask = rawTasks[i];
-    const generatedTask =
-      generatedTasks.find((task) => task.taskIndex === i + 1) ||
-      generatedTasks[i];
-
-    const draftNumber = i + 1;
-
-    const draft = {
-      draftId: makeDraftId(message.id, draftNumber),
-      draftNumber,
-      status: "pending_review",
-      sourceMessageId: message.id,
-      channelId: message.channelId,
-      previewMessageId: null,
-      createdAt: now,
-      updatedAt: now,
-      createdByDiscordId: message.author.id,
-      jiraIssueKey: null,
-      jiraIssueUrl: null,
-      jiraSubtaskKeys: [],
-      task: buildTaskFromRawAndGenerated(rawTask, generatedTask || {}),
-    };
-
-    drafts.push(draft);
-  }
-
-  latestState.processedSourceMessageIds.push(message.id);
-  latestState.drafts.push(...drafts);
-  saveJiraDraftState(latestState);
-
-  for (const draft of drafts) {
-    const previewMessage = await sendOrUpdatePreviewMessage(
-      message.channel,
-      draft,
+    await message.reply(
+      `Đã nhận ${rawTasks.length} task. Mình đang gửi qua AI để tạo Jira draft...`,
     );
 
-    updateDraftById(draft.draftId, (savedDraft) => {
-      savedDraft.previewMessageId = previewMessage.id;
-    });
-  }
+    let generatedTasks = [];
 
-  const savedStateAfterPreview = loadJiraDraftState();
-  const savedDraftsForThisMessage = savedStateAfterPreview.drafts.filter(
-    (draft) => draft.sourceMessageId === message.id,
-  );
+    try {
+      const batches = chunkArray(rawTasks, env.LLM_TASK_BATCH_SIZE || 8);
 
-  const bulkPayload = buildBulkConfirmPayload(
-    message.id,
-    savedDraftsForThisMessage,
-  );
+      console.log(
+        `\n[LLM][INFO] Will process ${rawTasks.length} tasks in ${batches.length} batch(es), batchSize=${env.LLM_TASK_BATCH_SIZE}`,
+      );
 
-  if (bulkPayload) {
-    await message.channel.send(bulkPayload);
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+        const batch = batches[batchIndex];
+
+        console.log(
+          `\n[LLM][INFO] Dispatch batch ${batchIndex + 1}/${batches.length} (${batch.length} tasks)`,
+        );
+
+        await message.channel.send(
+          `Đang xử lý AI batch ${batchIndex + 1}/${batches.length} (${batch.length} task)...`,
+        );
+
+        const batchGeneratedTasks = await generateJiraTasksWithLLM(batch);
+        const offset = batchIndex * (env.LLM_TASK_BATCH_SIZE || 8);
+
+        generatedTasks.push(
+          ...batchGeneratedTasks.map((task) => ({
+            ...task,
+            taskIndex: offset + task.taskIndex,
+          })),
+        );
+      }
+    } catch (error) {
+      console.error("\n[LLM][ERROR] LLM error while generating drafts");
+      console.error(error);
+      await message.reply(
+        "❌ AI lỗi, chưa tạo được Jira draft. Check log terminal/PM2.",
+      );
+      return;
+    }
+
+    const latestState = loadJiraDraftState();
+    const now = new Date().toISOString();
+    const drafts = [];
+
+    for (let i = 0; i < rawTasks.length; i += 1) {
+      const rawTask = rawTasks[i];
+      const generatedTask =
+        generatedTasks.find((task) => task.taskIndex === i + 1) ||
+        generatedTasks[i];
+
+      const draftNumber = i + 1;
+
+      const draft = {
+        draftId: makeDraftId(message.id, draftNumber),
+        draftNumber,
+        status: "pending_review",
+        sourceMessageId: message.id,
+        channelId: message.channelId,
+        previewMessageId: null,
+        createdAt: now,
+        updatedAt: now,
+        createdByDiscordId: message.author.id,
+        jiraIssueKey: null,
+        jiraIssueUrl: null,
+        jiraSubtaskKeys: [],
+        task: buildTaskFromRawAndGenerated(rawTask, generatedTask || {}),
+      };
+
+      drafts.push(draft);
+    }
+
+    latestState.processedSourceMessageIds = latestState.processedSourceMessageIds.filter(
+      (id) => id !== message.id,
+    );
+    latestState.processedSourceMessageIds.push(message.id);
+    latestState.inFlightSourceMessageIds =
+      latestState.inFlightSourceMessageIds.filter((id) => id !== message.id);
+    latestState.drafts.push(...drafts);
+    saveJiraDraftState(latestState);
+    claimed = false;
+
+    for (const draft of drafts) {
+      const previewMessage = await sendOrUpdatePreviewMessage(
+        message.channel,
+        draft,
+      );
+
+      updateDraftById(draft.draftId, (savedDraft) => {
+        savedDraft.previewMessageId = previewMessage.id;
+      });
+    }
+
+    const savedStateAfterPreview = loadJiraDraftState();
+    const savedDraftsForThisMessage = savedStateAfterPreview.drafts.filter(
+      (draft) => draft.sourceMessageId === message.id,
+    );
+
+    const bulkPayload = buildBulkConfirmPayload(
+      message.id,
+      savedDraftsForThisMessage,
+    );
+
+    if (bulkPayload) {
+      await message.channel.send(bulkPayload);
+    }
+  } finally {
+    if (claimed) {
+      releaseSourceMessageClaim(message.id);
+    }
   }
 }
 
@@ -376,7 +414,7 @@ async function confirmDraft(interaction, draftId) {
   const draft = getDraftById(state, draftId);
 
   if (!draft) {
-    await interaction.reply({
+    await safeInteractionRespond(interaction, "reply", {
       content: "❌ Không tìm thấy draft này.",
       ephemeral: true,
     });
@@ -384,7 +422,7 @@ async function confirmDraft(interaction, draftId) {
   }
 
   if (draft.status === "created") {
-    await interaction.reply({
+    await safeInteractionRespond(interaction, "reply", {
       content: `⚠️ Draft này đã được tạo Jira rồi: ${draft.jiraIssueUrl}`,
       ephemeral: true,
     });
@@ -394,14 +432,14 @@ async function confirmDraft(interaction, draftId) {
   const validationError = validateDraftBeforeConfirm(draft);
 
   if (validationError) {
-    await interaction.reply({
+    await safeInteractionRespond(interaction, "reply", {
       content: `❌ Chưa thể tạo Jira task: ${validationError}`,
       ephemeral: true,
     });
     return;
   }
 
-  await interaction.deferReply();
+  await safeInteractionRespond(interaction, "deferReply", {});
 
   try {
     const result = await createJiraTaskWithSubtasks(draft.task);
@@ -413,14 +451,17 @@ async function confirmDraft(interaction, draftId) {
       savedDraft.jiraSubtaskKeys = result.subtasks.map((item) => item.key);
     });
 
-    await interaction.editReply(
+    await safeInteractionRespond(
+      interaction,
+      "editReply",
       `✅ Đã tạo Jira task: **${result.parentIssue.key}**\n${result.browseUrl}`,
     );
 
     try {
       await interaction.message.edit(buildDraftPreviewPayload(updatedDraft));
     } catch (error) {
-      console.error("Cannot update confirmed preview:", error.message);
+      const isExpired = error?.code === 10062 || error?.code === 40060;
+      if (!isExpired) console.error("Cannot update confirmed preview:", error.message);
     }
   } catch (error) {
     console.error("Jira create error:", error.response?.data || error.message);
@@ -432,9 +473,26 @@ async function confirmDraft(interaction, draftId) {
       );
     });
 
-    await interaction.editReply(
+    await safeInteractionRespond(
+      interaction,
+      "editReply",
       "❌ Tạo Jira task thất bại. Check `pm2 logs daily-standup-bot` để xem lỗi.",
     );
+  }
+}
+
+async function safeInteractionRespond(interaction, method, payload) {
+  try {
+    await interaction[method](payload);
+  } catch (error) {
+    const isExpired = error?.code === 10062 || error?.code === 40060;
+    if (isExpired) {
+      console.warn(
+        `[Interaction] Token expired or already handled (${error.code}) — state updated, Discord UI skipped.`,
+      );
+      return;
+    }
+    throw error;
   }
 }
 
@@ -444,14 +502,18 @@ async function skipDraft(interaction, draftId) {
   });
 
   if (!updatedDraft) {
-    await interaction.reply({
+    await safeInteractionRespond(interaction, "reply", {
       content: "❌ Không tìm thấy draft này.",
       ephemeral: true,
     });
     return;
   }
 
-  await interaction.update(buildDraftPreviewPayload(updatedDraft));
+  await safeInteractionRespond(
+    interaction,
+    "update",
+    buildDraftPreviewPayload(updatedDraft),
+  );
 }
 
 async function showAiEditHelp(interaction, draftId) {
@@ -459,14 +521,14 @@ async function showAiEditHelp(interaction, draftId) {
   const draft = getDraftById(state, draftId);
 
   if (!draft) {
-    await interaction.reply({
+    await safeInteractionRespond(interaction, "reply", {
       content: "❌ Không tìm thấy draft này.",
       ephemeral: true,
     });
     return;
   }
 
-  await interaction.reply({
+  await safeInteractionRespond(interaction, "reply", {
     content: `Bạn có thể sửa draft #${draft.draftNumber} bằng 2 cách:
 
 **1. Sửa trực tiếp toàn bộ draft, không gọi AI**
@@ -495,7 +557,7 @@ async function showFullEditModal(interaction, draftId) {
   const draft = getDraftById(state, draftId);
 
   if (!draft) {
-    await interaction.reply({
+    await safeInteractionRespond(interaction, "reply", {
       content: "❌ Không tìm thấy draft này.",
       ephemeral: true,
     });
@@ -503,7 +565,7 @@ async function showFullEditModal(interaction, draftId) {
   }
 
   if (draft.status !== "pending_review") {
-    await interaction.reply({
+    await safeInteractionRespond(interaction, "reply", {
       content: "⚠️ Chỉ có thể sửa draft đang ở trạng thái pending_review.",
       ephemeral: true,
     });
@@ -524,7 +586,7 @@ async function showFullEditModal(interaction, draftId) {
 
   modal.addComponents(new ActionRowBuilder().addComponents(fullDraftInput));
 
-  await interaction.showModal(modal);
+  await safeInteractionRespond(interaction, "showModal", modal);
 }
 
 async function handleFullEditModalSubmit(interaction) {
@@ -540,7 +602,7 @@ async function handleFullEditModalSubmit(interaction) {
   const draft = getDraftById(state, draftId);
 
   if (!draft) {
-    await interaction.reply({
+    await safeInteractionRespond(interaction, "reply", {
       content: "❌ Không tìm thấy draft này.",
       ephemeral: true,
     });
@@ -561,10 +623,11 @@ async function handleFullEditModalSubmit(interaction) {
     );
     await previewMessage.edit(buildDraftPreviewPayload(updatedDraft));
   } catch (error) {
-    console.error("Cannot update preview after modal submit:", error.message);
+    const isExpired = error?.code === 10062 || error?.code === 40060;
+    if (!isExpired) console.error("Cannot update preview after modal submit:", error.message);
   }
 
-  await interaction.reply({
+  await safeInteractionRespond(interaction, "reply", {
     content: `✅ Đã cập nhật trực tiếp Jira draft #${updatedDraft.draftNumber}. Không gọi AI.`,
     ephemeral: true,
   });
@@ -584,14 +647,14 @@ async function bulkConfirmDrafts(interaction) {
   const selectedDraftIds = interaction.values || [];
 
   if (selectedDraftIds.length === 0) {
-    await interaction.reply({
+    await safeInteractionRespond(interaction, "reply", {
       content: "⚠️ Bạn chưa chọn draft nào.",
       ephemeral: true,
     });
     return true;
   }
 
-  await interaction.deferReply();
+  await safeInteractionRespond(interaction, "deferReply", {});
 
   const results = [];
 
@@ -657,7 +720,7 @@ async function bulkConfirmDrafts(interaction) {
     }
   }
 
-  await interaction.editReply({
+  await safeInteractionRespond(interaction, "editReply", {
     content: `**Bulk Confirm Result**\n\n${results.join("\n")}`.slice(0, 1900),
   });
 
@@ -732,8 +795,9 @@ async function handleJiraEditCommand(message) {
     try {
       revisedTask = await reviseJiraTaskWithLLM(draft.task, editInstruction);
     } catch (error) {
-      console.error("LLM edit error:", error);
-      await message.reply("❌ AI lỗi khi sửa draft. Check log PM2.");
+      console.error("\n[LLM][ERROR] LLM edit error");
+      console.error(error);
+      await message.reply("❌ AI lỗi khi sửa draft. Check log terminal/PM2.");
       return true;
     }
 

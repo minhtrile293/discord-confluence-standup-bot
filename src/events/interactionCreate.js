@@ -11,11 +11,23 @@ function registerInteractionCreateEvent(client) {
     } catch (error) {
       console.error("interactionCreate error:", error);
 
-      if (!interaction.replied && !interaction.deferred) {
+      const alreadyHandled =
+        interaction.replied ||
+        interaction.deferred ||
+        error?.code === 10062 ||
+        error?.code === 40060;
+
+      if (alreadyHandled) {
+        return;
+      }
+
+      try {
         await interaction.reply({
-          content: "❌ Bot xử lý interaction bị lỗi. Check log PM2.",
+          content: "❌ Bot xử lý interaction bị lỗi. Check log terminal/PM2.",
           ephemeral: true,
         });
+      } catch (replyError) {
+        console.error("Cannot reply to failed interaction:", replyError.message);
       }
     }
   });

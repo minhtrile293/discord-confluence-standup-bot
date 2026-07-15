@@ -8,8 +8,10 @@ const {
 const {
   registerInteractionCreateEvent,
 } = require("./events/interactionCreate");
+const { logLlmStartupConfig } = require("./services/llmService");
 
 validateEnv();
+logLlmStartupConfig();
 
 registerMessageCreateEvent(client);
 registerMessageReactionAddEvent(client);
