@@ -1,12 +1,15 @@
 const axios = require("axios");
 const { env } = require("../config/env");
+const {
+  resolveAssigneeDiscordIdFromText,
+  stripAssigneeMarkersFromLine,
+} = require("../config/jiraMembers");
 const { getDateInfo } = require("../utils/date");
 
 const MAX_MEETING_NOTE_ATTACHMENT_BYTES = 256 * 1024;
 
 function normalizeMention(text) {
-  const match = String(text || "").match(/<@!?(\d+)>/);
-  return match ? match[1] : null;
+  return resolveAssigneeDiscordIdFromText(text);
 }
 
 function parseStoryPoint(text) {
@@ -15,9 +18,13 @@ function parseStoryPoint(text) {
 }
 
 function parseDueDate(text) {
-  const match = String(text || "").match(
+  const slashMatch = String(text || "").match(
     /(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/,
   );
+  const dotMatch = String(text || "").match(
+    /(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?/,
+  );
+  const match = slashMatch || dotMatch;
 
   if (!match) return null;
 
@@ -40,11 +47,13 @@ function parseDueDate(text) {
 }
 
 function cleanTaskTitle(line) {
-  return String(line || "")
-    .replace(/^-+\s*/, "")
-    .replace(/<@!?\d+>/g, "")
+  return stripAssigneeMarkersFromLine(line)
     .replace(/\[\d+(?:\.\d+)?\s*sp\]/gi, "")
     .replace(/\d{1,2}\/\d{1,2}(?:\/\d{2,4})?/g, "")
+    .replace(/\d{1,2}\.\d{1,2}(?:\.\d{2,4})?/g, "")
+    .replace(/→/g, " ")
+    .replace(/^-+\s*/, "")
+    .replace(/\s+/g, " ")
     .trim();
 }
 

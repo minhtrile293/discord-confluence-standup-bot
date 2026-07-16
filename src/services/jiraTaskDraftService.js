@@ -45,7 +45,7 @@ function buildTaskFromRawAndGenerated(rawTask, generatedTask) {
   return {
     title: generatedTask.title || rawTask.rawTitle,
     assigneeDiscordId:
-      generatedTask.assigneeDiscordId || rawTask.assigneeDiscordId,
+      rawTask.assigneeDiscordId || generatedTask.assigneeDiscordId,
     storyPoint: rawTask.storyPoint,
     dueDate: rawTask.dueDate,
     description: generatedTask.description || "N/A",

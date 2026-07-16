@@ -39,6 +39,150 @@ const JIRA_MEMBERS_BY_DISCORD_ID = {
   },
 };
 
+let cachedAliasIndex = null;
+
+function normalizeForAliasMatch(text) {
+  return String(text || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getSortedAliasIndex() {
+  if (cachedAliasIndex) return cachedAliasIndex;
+
+  const entries = [];
+
+  for (const [discordId, member] of Object.entries(JIRA_MEMBERS_BY_DISCORD_ID)) {
+    for (const alias of member.aliases || []) {
+      const trimmedAlias = String(alias).trim();
+      if (!trimmedAlias) continue;
+
+      entries.push({
+        discordId,
+        alias: trimmedAlias,
+        normalizedAlias: normalizeForAliasMatch(
+          trimmedAlias.replace(/^@/, ""),
+        ),
+        hasAtPrefix: trimmedAlias.startsWith("@"),
+      });
+    }
+  }
+
+  cachedAliasIndex = entries.sort(
+    (left, right) => right.normalizedAlias.length - left.normalizedAlias.length,
+  );
+
+  return cachedAliasIndex;
+}
+
+function normalizeDiscordMention(text) {
+  const match = String(text || "").match(/<@!?(\d+)>/);
+  return match ? match[1] : null;
+}
+
+function matchAliasCandidate(candidate, aliasIndex = getSortedAliasIndex()) {
+  const normalizedCandidate = normalizeForAliasMatch(
+    String(candidate || "").replace(/^@/, ""),
+  );
+
+  if (!normalizedCandidate) return null;
+
+  for (const entry of aliasIndex) {
+    if (normalizedCandidate === entry.normalizedAlias) {
+      return entry.discordId;
+    }
+  }
+
+  return null;
+}
+
+function extractAssigneeCandidates(text) {
+  const candidates = [];
+  const line = String(text || "");
+
+  for (const match of line.matchAll(/\(([^)]+)\)/g)) {
+    candidates.push(match[1].trim());
+  }
+
+  for (const match of line.matchAll(/@([^\s@][^@\[\]\n]*?)(?=\s*[\[\d]|$)/gu)) {
+    candidates.push(match[1].trim());
+  }
+
+  const arrowMatches = [...line.matchAll(/→\s*([^→\n]+?)(?=\s*(?:→|\[|\d{1,2}\/|$))/g)];
+  for (const match of arrowMatches) {
+    candidates.push(match[1].trim());
+  }
+
+  return candidates;
+}
+
+function matchAliasInText(text, aliasIndex = getSortedAliasIndex()) {
+  const normalizedText = normalizeForAliasMatch(text);
+
+  for (const entry of aliasIndex) {
+    const patterns = entry.hasAtPrefix
+      ? [`@${entry.normalizedAlias}`]
+      : [`@${entry.normalizedAlias}`, entry.normalizedAlias];
+
+    for (const pattern of [...new Set(patterns)]) {
+      if (!pattern) continue;
+
+      const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(
+        `(?:^|[\\s(,→\\[])${escaped}(?:[\\s\\[\\])→,.]|$)`,
+      );
+
+      if (regex.test(normalizedText)) {
+        return entry.discordId;
+      }
+    }
+  }
+
+  return null;
+}
+
+function resolveAssigneeDiscordIdFromText(text) {
+  const mentionId = normalizeDiscordMention(text);
+  if (mentionId) return mentionId;
+
+  const aliasIndex = getSortedAliasIndex();
+
+  for (const candidate of extractAssigneeCandidates(text)) {
+    const discordId = matchAliasCandidate(candidate, aliasIndex);
+    if (discordId) return discordId;
+  }
+
+  return matchAliasInText(text, aliasIndex);
+}
+
+function stripAssigneeMarkersFromLine(line) {
+  let result = String(line || "");
+  result = result.replace(/<@!?\d+>/g, "");
+
+  for (const entry of getSortedAliasIndex()) {
+    const variants = entry.hasAtPrefix
+      ? [entry.alias]
+      : [entry.alias, `@${entry.alias}`];
+
+    for (const variant of variants) {
+      const escaped = variant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      result = result.replace(
+        new RegExp(`\\(\\s*${escaped}\\s*\\)`, "giu"),
+        " ",
+      );
+      result = result.replace(
+        new RegExp(`(?:^|[\\s(,→\\[])@?${escaped}(?=[\\s\\[\\])→,.]|$)`, "giu"),
+        " ",
+      );
+    }
+  }
+
+  return result;
+}
+
 function getJiraMemberByDiscordId(discordId) {
   return JIRA_MEMBERS_BY_DISCORD_ID[String(discordId)] || null;
 }
@@ -57,4 +201,6 @@ module.exports = {
   JIRA_MEMBERS_BY_DISCORD_ID,
   getJiraMemberByDiscordId,
   getLlmMemberDirectory,
+  resolveAssigneeDiscordIdFromText,
+  stripAssigneeMarkersFromLine,
 };

@@ -3,3 +3,4 @@ node_modules/
 data/penalties.json
 assets/qr.png
 data/jira-task-drafts.json
+.cursor/

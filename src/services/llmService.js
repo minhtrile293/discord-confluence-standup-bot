@@ -250,9 +250,11 @@ Nhiệm vụ:
 - Được quyền giữ subtask người dùng đã nhập và bổ sung subtask hợp lý nếu task còn thiếu.
 
 Quy tắc xác định assigneeDiscordId:
-- Nếu raw task đã có assigneeDiscordIdFromMention thì ưu tiên dùng ID đó.
+- Nếu raw task đã có assigneeDiscordIdFromMention thì BẮT BUỘC dùng đúng ID đó, không đổi.
+- Chỉ tự suy luận từ tên khi assigneeDiscordIdFromMention đang null/rỗng.
 - Nếu raw task chỉ ghi tên như "Luân", "@Hà", "Lê Trí", "le tri", "LUAN" thì hãy so với memberDirectory.
 - Hãy so khớp mềm: không phân biệt hoa thường, có dấu/không dấu, có @/không @, tên đầy đủ/tên ngắn.
+- Phân biệt rõ "@Lê Trí" (Trí Lê Minh) và "@Đỗ Trí"/"@Do Tri" (Đỗ Nguyễn Minh Trí).
 - Chỉ được trả assigneeDiscordId nằm trong memberDirectory.
 - Nếu không chắc chắn, trả chuỗi rỗng "".
 
