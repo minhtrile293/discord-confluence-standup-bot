@@ -7,6 +7,17 @@ function toNumber(value, fallback = null) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function toBoolean(value, fallback = false) {
+  if (value === undefined || value === null || value === "") return fallback;
+
+  const normalizedValue = String(value).trim().toLowerCase();
+
+  if (["true", "1", "yes", "on"].includes(normalizedValue)) return true;
+  if (["false", "0", "no", "off"].includes(normalizedValue)) return false;
+
+  return fallback;
+}
+
 function cleanEnvString(value) {
   if (value === undefined || value === null) return "";
   return String(value)
@@ -58,6 +69,10 @@ const env = {
 
   PAYMENT_QR_FILE_PATH: process.env.PAYMENT_QR_FILE_PATH || "./assets/qr.png",
   FINE_AMOUNT: Number(process.env.DAILY_FINE_AMOUNT || "10000"),
+  CONFLUENCE_PENALTY_REMINDER_ENABLED: toBoolean(
+    process.env.CONFLUENCE_PENALTY_REMINDER_ENABLED,
+    true,
+  ),
 
   PENALTY_STATE_FILE: path.resolve(
     process.cwd(),

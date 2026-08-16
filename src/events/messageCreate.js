@@ -27,6 +27,13 @@ function registerMessageCreateEvent(client) {
         const result = await checkMissingDailyAtNoon(client);
         await message.react("✅");
 
+        if (result?.reason === "penalty_reminder_disabled") {
+          await message.reply(
+            "⏸️ Chức năng nhắc phạt Confluence đang tắt trong cấu hình.",
+          );
+          return;
+        }
+
         if (result?.success === false) {
           await message.reply(
             "❌ Bot không đọc được Confluence nên chưa check phạt để tránh phạt nhầm.",
@@ -60,8 +67,15 @@ Bot đã gửi tin nhắn vi phạm trong thread daily.`,
       }
 
       if (message.content === "!fine-check") {
-        await escalateUnpaidPenaltiesAtMidnight(client);
+        const result = await escalateUnpaidPenaltiesAtMidnight(client);
         await message.react("✅");
+
+        if (result?.reason === "penalty_reminder_disabled") {
+          await message.reply(
+            "⏸️ Chức năng nhắc phạt Confluence đang tắt trong cấu hình.",
+          );
+        }
+
         return;
       }
 
