@@ -69,10 +69,7 @@ const env = {
 
   PAYMENT_QR_FILE_PATH: process.env.PAYMENT_QR_FILE_PATH || "./assets/qr.png",
   FINE_AMOUNT: Number(process.env.DAILY_FINE_AMOUNT || "10000"),
-  CONFLUENCE_PENALTY_REMINDER_ENABLED: toBoolean(
-    process.env.CONFLUENCE_PENALTY_REMINDER_ENABLED,
-    true,
-  ),
+  CHATBOT_ENABLED: toBoolean(process.env.CHATBOT_ENABLED, true),
 
   PENALTY_STATE_FILE: path.resolve(
     process.cwd(),
@@ -92,6 +89,14 @@ const env = {
 };
 
 function validateEnv() {
+  if (!env.CHATBOT_ENABLED) {
+    if (!env.DISCORD_BOT_TOKEN) {
+      throw new Error("Missing environment variable: DISCORD_BOT_TOKEN");
+    }
+
+    return;
+  }
+
   const required = [
     "DISCORD_BOT_TOKEN",
     "DISCORD_DAILY_CHANNEL_ID",

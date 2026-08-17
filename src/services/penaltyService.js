@@ -199,17 +199,6 @@ async function getSubmittedMembersFromConfluence(dateInfo) {
 }
 
 async function checkMissingDailyAtNoon(client) {
-  if (!env.CONFLUENCE_PENALTY_REMINDER_ENABLED) {
-    console.log("Confluence penalty reminder is disabled.");
-
-    return {
-      success: false,
-      reason: "penalty_reminder_disabled",
-      allSubmitted: false,
-      missingMembers: [],
-    };
-  }
-
   const dateInfo = getDateInfo();
   const state = loadPenaltyState();
   const todayState = getTodayState(state, dateInfo.key);
@@ -298,16 +287,6 @@ async function checkMissingDailyAtNoon(client) {
 }
 
 async function escalateUnpaidPenaltiesAtMidnight(client) {
-  if (!env.CONFLUENCE_PENALTY_REMINDER_ENABLED) {
-    console.log("Confluence penalty reminder is disabled.");
-
-    return {
-      success: false,
-      reason: "penalty_reminder_disabled",
-      escalatedPenalties: [],
-    };
-  }
-
   const state = loadPenaltyState();
 
   const unpaidPenalties = Object.entries(state.penalties).filter(

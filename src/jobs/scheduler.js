@@ -15,35 +15,29 @@ function setupScheduler(client) {
     timezone: env.TIMEZONE,
   });
 
-  if (env.CONFLUENCE_PENALTY_REMINDER_ENABLED) {
-    cron.schedule(NOON_CHECK_CRON, () => checkMissingDailyAtNoon(client), {
-      timezone: env.TIMEZONE,
-    });
+  cron.schedule(NOON_CHECK_CRON, () => checkMissingDailyAtNoon(client), {
+    timezone: env.TIMEZONE,
+  });
 
-    cron.schedule(
-      MIDNIGHT_ESCALATION_CRON,
-      () => escalateUnpaidPenaltiesAtMidnight(client),
-      {
-        timezone: env.TIMEZONE,
-      },
-    );
-  }
+  cron.schedule(
+    MIDNIGHT_ESCALATION_CRON,
+    () => escalateUnpaidPenaltiesAtMidnight(client),
+    {
+      timezone: env.TIMEZONE,
+    },
+  );
 
   console.log(
     `Daily reminder scheduled: ${DAILY_STANDUP_CRON}, timezone: ${env.TIMEZONE}`,
   );
 
-  if (env.CONFLUENCE_PENALTY_REMINDER_ENABLED) {
-    console.log(
-      `Noon missing-daily check scheduled: ${NOON_CHECK_CRON}, timezone: ${env.TIMEZONE}`,
-    );
+  console.log(
+    `Noon missing-daily check scheduled: ${NOON_CHECK_CRON}, timezone: ${env.TIMEZONE}`,
+  );
 
-    console.log(
-      `Midnight fine escalation scheduled: ${MIDNIGHT_ESCALATION_CRON}, timezone: ${env.TIMEZONE}`,
-    );
-  } else {
-    console.log("Confluence penalty reminder is disabled by environment.");
-  }
+  console.log(
+    `Midnight fine escalation scheduled: ${MIDNIGHT_ESCALATION_CRON}, timezone: ${env.TIMEZONE}`,
+  );
 }
 
 module.exports = {

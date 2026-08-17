@@ -15,16 +15,16 @@ nano .env
 
 pm2 restart daily-standup-bot
 
-## Bật/tắt nhắc phạt Confluence
+## Bật/tắt chatbot
 
 Thêm biến sau vào file `.env`:
 
 ```env
-CONFLUENCE_PENALTY_REMINDER_ENABLED=true
+CHATBOT_ENABLED=true
 ```
 
-- `true`: bật kiểm tra thiếu daily lúc 12:00 và nhắc/tăng phạt lúc 00:00.
-- `false`: tắt hai tác vụ nhắc phạt trên. Nhắc daily lúc 07:00 và cập nhật Confluence vẫn hoạt động.
+- `true`: chatbot hoạt động bình thường.
+- `false`: chatbot không xử lý tin nhắn, reaction, interaction hay chạy bất kỳ lịch nhắc nào. Bot hiển thị offline trên Discord.
 
 Sau khi thay đổi, khởi động lại bot:
 
