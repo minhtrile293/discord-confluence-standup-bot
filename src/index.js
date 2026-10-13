@@ -13,11 +13,11 @@ const { logLlmStartupConfig } = require("./services/llmService");
 async function startBot(botClient = client) {
   validateEnv();
 
-  if (!env.CHATBOT_ENABLED) {
+  if (!env.DSU_ENABLED && !env.JIRA_ENABLED) {
     botClient.once("ready", () => {
       botClient.user.setPresence({ status: "invisible" });
       console.log(
-        `Chatbot is disabled by environment. Connected as ${botClient.user.tag} with invisible status.`,
+        `DSU and Jira are both disabled by environment. Connected as ${botClient.user.tag} with invisible status.`,
       );
     });
 
@@ -25,15 +25,25 @@ async function startBot(botClient = client) {
     return;
   }
 
-  logLlmStartupConfig();
+  if (env.JIRA_ENABLED) {
+    logLlmStartupConfig();
+    registerInteractionCreateEvent(botClient);
+  }
+
+  if (env.DSU_ENABLED) {
+    registerMessageReactionAddEvent(botClient);
+  }
 
   registerMessageCreateEvent(botClient);
-  registerMessageReactionAddEvent(botClient);
-  registerInteractionCreateEvent(botClient);
 
   botClient.once("ready", () => {
-    console.log(`Logged in as ${botClient.user.tag}`);
-    setupScheduler(botClient);
+    console.log(
+      `Logged in as ${botClient.user.tag} (DSU: ${env.DSU_ENABLED ? "on" : "off"}, Jira: ${env.JIRA_ENABLED ? "on" : "off"})`,
+    );
+
+    if (env.DSU_ENABLED) {
+      setupScheduler(botClient);
+    }
   });
 
   await botClient.login(env.DISCORD_BOT_TOKEN);

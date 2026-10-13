@@ -9,7 +9,7 @@ const {
 } = require("../utils/llmLogger");
 
 let cachedGeminiClient = null;
-let cachedOpenAiClient = null;
+let cachedOpenRouterClient = null;
 
 // Mỗi provider: gọi 1 lần + retry tối đa 1 lần (SDK), rồi mới fallback provider khác.
 const LLM_MAX_RETRIES = 1;
@@ -21,11 +21,11 @@ const GEMINI_REQUEST_OPTIONS = {
 function logLlmStartupConfig() {
   logLlmInfo("Startup LLM config", {
     primary: {
-      provider: "github-models/openai-compatible",
-      model: env.OPENAI_MODEL,
-      baseURL: env.OPENAI_BASE_URL,
-      apiKeyConfigured: Boolean(env.OPENAI_API_KEY),
-      apiKey: env.OPENAI_API_KEY ? maskSecret(env.OPENAI_API_KEY) : null,
+      provider: "openrouter",
+      model: env.OPENROUTER_MODEL,
+      baseURL: env.OPENROUTER_BASE_URL,
+      apiKeyConfigured: Boolean(env.OPENROUTER_API_KEY),
+      apiKey: env.OPENROUTER_API_KEY ? maskSecret(env.OPENROUTER_API_KEY) : null,
     },
     fallback: {
       provider: "gemini",
@@ -36,12 +36,12 @@ function logLlmStartupConfig() {
     sdkMaxRetriesPerProvider: LLM_MAX_RETRIES,
     batchSize: env.LLM_TASK_BATCH_SIZE,
     maxTasksPerMeetingNote: env.MAX_TASKS_PER_MEETING_NOTE,
-    order: ["github-models (gpt-4o-mini)", "gemini"],
+    order: ["openrouter", "gemini"],
   });
 
-  if (!env.OPENAI_API_KEY) {
+  if (!env.OPENROUTER_API_KEY) {
     console.warn(
-      "[LLM][WARN] OPENAI_API_KEY / GITHUB_TOKEN is empty. GPT primary will be skipped until you set it.",
+      "[LLM][WARN] OPENROUTER_API_KEY is empty. OpenRouter primary will be skipped until you set it.",
     );
   }
 }
@@ -54,22 +54,22 @@ async function getGeminiClient() {
   return cachedGeminiClient;
 }
 
-function getOpenAiClient() {
-  if (!env.OPENAI_API_KEY) {
+function getOpenRouterClient() {
+  if (!env.OPENROUTER_API_KEY) {
     throw new Error(
-      "OPENAI_API_KEY (GitHub PAT) is not configured for GitHub Models.",
+      "OPENROUTER_API_KEY is not configured.",
     );
   }
 
-  if (cachedOpenAiClient) return cachedOpenAiClient;
+  if (cachedOpenRouterClient) return cachedOpenRouterClient;
 
-  cachedOpenAiClient = new OpenAI({
-    apiKey: env.OPENAI_API_KEY,
-    baseURL: env.OPENAI_BASE_URL,
+  cachedOpenRouterClient = new OpenAI({
+    apiKey: env.OPENROUTER_API_KEY,
+    baseURL: env.OPENROUTER_BASE_URL,
     maxRetries: LLM_MAX_RETRIES,
   });
 
-  return cachedOpenAiClient;
+  return cachedOpenRouterClient;
 }
 
 function buildRawTaskPayload(rawTasks) {
@@ -282,20 +282,20 @@ Yêu cầu chỉnh sửa:
 ${editInstruction}`;
 }
 
-async function generateWithOpenAI(rawTasks, prompt) {
-  const client = getOpenAiClient();
+async function generateWithOpenRouter(rawTasks, prompt) {
+  const client = getOpenRouterClient();
 
-  logLlmInfo("generateJiraTasks OpenAI request", {
-    provider: "github-models",
-    baseURL: env.OPENAI_BASE_URL,
-    model: env.OPENAI_MODEL,
+  logLlmInfo("generateJiraTasks OpenRouter request", {
+    provider: "openrouter",
+    baseURL: env.OPENROUTER_BASE_URL,
+    model: env.OPENROUTER_MODEL,
     taskCount: rawTasks.length,
     promptChars: prompt.length,
     promptPreview: prompt.slice(0, 500),
   });
 
   const completion = await client.chat.completions.create({
-    model: env.OPENAI_MODEL,
+    model: env.OPENROUTER_MODEL,
     messages: [
       {
         role: "system",
@@ -316,19 +316,19 @@ async function generateWithOpenAI(rawTasks, prompt) {
 
   const content = completion.choices[0]?.message?.content;
   if (!content) {
-    throw new Error("OpenAI returned empty content.");
+    throw new Error("OpenRouter returned empty content.");
   }
 
-  logLlmInfo("generateJiraTasks OpenAI raw response", {
-    model: env.OPENAI_MODEL,
+  logLlmInfo("generateJiraTasks OpenRouter raw response", {
+    model: env.OPENROUTER_MODEL,
     outputChars: content.length,
     outputPreview: content.slice(0, 800),
   });
 
-  const parsed = safeJsonParse(content, "OpenAI");
+  const parsed = safeJsonParse(content, "OpenRouter");
 
   if (!parsed.tasks || !Array.isArray(parsed.tasks)) {
-    throw new Error("OpenAI response missing tasks array.");
+    throw new Error("OpenRouter response missing tasks array.");
   }
 
   return parsed.tasks.map((task, index) =>
@@ -336,20 +336,20 @@ async function generateWithOpenAI(rawTasks, prompt) {
   );
 }
 
-async function reviseWithOpenAI(existingTask, editInstruction, prompt) {
-  const client = getOpenAiClient();
+async function reviseWithOpenRouter(existingTask, editInstruction, prompt) {
+  const client = getOpenRouterClient();
 
-  logLlmInfo("reviseJiraTask OpenAI request", {
-    provider: "github-models",
-    baseURL: env.OPENAI_BASE_URL,
-    model: env.OPENAI_MODEL,
+  logLlmInfo("reviseJiraTask OpenRouter request", {
+    provider: "openrouter",
+    baseURL: env.OPENROUTER_BASE_URL,
+    model: env.OPENROUTER_MODEL,
     editInstruction,
     promptChars: prompt.length,
     existingTitle: existingTask?.title,
   });
 
   const completion = await client.chat.completions.create({
-    model: env.OPENAI_MODEL,
+    model: env.OPENROUTER_MODEL,
     messages: [
       {
         role: "system",
@@ -370,16 +370,16 @@ async function reviseWithOpenAI(existingTask, editInstruction, prompt) {
 
   const content = completion.choices[0]?.message?.content;
   if (!content) {
-    throw new Error("OpenAI returned empty content.");
+    throw new Error("OpenRouter returned empty content.");
   }
 
-  logLlmInfo("reviseJiraTask OpenAI raw response", {
-    model: env.OPENAI_MODEL,
+  logLlmInfo("reviseJiraTask OpenRouter raw response", {
+    model: env.OPENROUTER_MODEL,
     outputChars: content.length,
     outputPreview: content.slice(0, 800),
   });
 
-  const parsed = safeJsonParse(content, "OpenAI");
+  const parsed = safeJsonParse(content, "OpenRouter");
   return normalizeRevisedTask(parsed, existingTask);
 }
 
@@ -460,39 +460,39 @@ async function reviseWithGemini(existingTask, editInstruction, prompt) {
   return normalizeRevisedTask(parsed, existingTask);
 }
 
-async function withProviderFallback(operationName, openAiFn, geminiFn, context = {}) {
+async function withProviderFallback(operationName, openRouterFn, geminiFn, context = {}) {
   const errors = [];
 
   logLlmInfo(`${operationName} start`, {
-    order: ["openai", "gemini"],
+    order: ["openrouter", "gemini"],
     sdkMaxRetriesPerProvider: LLM_MAX_RETRIES,
     ...context,
   });
 
-  if (env.OPENAI_API_KEY) {
+  if (env.OPENROUTER_API_KEY) {
     const startedAt = Date.now();
     try {
-      logLlmInfo(`${operationName} trying OpenAI`, {
-        model: env.OPENAI_MODEL,
+      logLlmInfo(`${operationName} trying OpenRouter`, {
+        model: env.OPENROUTER_MODEL,
         ...context,
       });
-      const result = await openAiFn();
-      logLlmSuccess(`${operationName} succeeded with OpenAI`, {
-        model: env.OPENAI_MODEL,
+      const result = await openRouterFn();
+      logLlmSuccess(`${operationName} succeeded with OpenRouter`, {
+        model: env.OPENROUTER_MODEL,
         durationMs: Date.now() - startedAt,
         ...context,
       });
       return result;
     } catch (error) {
-      logLlmError(`${operationName} failed on OpenAI`, error, {
-        model: env.OPENAI_MODEL,
+      logLlmError(`${operationName} failed on OpenRouter`, error, {
+        model: env.OPENROUTER_MODEL,
         durationMs: Date.now() - startedAt,
         ...context,
       });
-      errors.push(`OpenAI: ${error?.message || String(error)}`);
+      errors.push(`OpenRouter: ${error?.message || String(error)}`);
     }
   } else {
-    logLlmInfo(`${operationName} skipping OpenAI (no OPENAI_API_KEY)`, context);
+    logLlmInfo(`${operationName} skipping OpenRouter (no OPENROUTER_API_KEY)`, context);
   }
 
   const geminiStartedAt = Date.now();
@@ -518,7 +518,7 @@ async function withProviderFallback(operationName, openAiFn, geminiFn, context =
   }
 
   const finalError = new Error(
-    `${operationName} failed on OpenAI then Gemini. ${errors.join(" | ")}`,
+    `${operationName} failed on OpenRouter then Gemini. ${errors.join(" | ")}`,
   );
   logLlmError(`${operationName} exhausted all providers`, finalError, {
     ...context,
@@ -531,7 +531,7 @@ async function generateJiraTasksWithLLM(rawTasks) {
 
   return withProviderFallback(
     "generateJiraTasks",
-    () => generateWithOpenAI(rawTasks, prompt),
+    () => generateWithOpenRouter(rawTasks, prompt),
     () => generateWithGemini(rawTasks, prompt),
     {
       taskCount: rawTasks.length,
@@ -545,7 +545,7 @@ async function reviseJiraTaskWithLLM(existingTask, editInstruction) {
 
   return withProviderFallback(
     "reviseJiraTask",
-    () => reviseWithOpenAI(existingTask, editInstruction, prompt),
+    () => reviseWithOpenRouter(existingTask, editInstruction, prompt),
     () => reviseWithGemini(existingTask, editInstruction, prompt),
     {
       existingTitle: existingTask?.title,

@@ -36,14 +36,12 @@ const env = {
   CONFLUENCE_EMAIL: process.env.CONFLUENCE_EMAIL,
   CONFLUENCE_API_TOKEN: process.env.CONFLUENCE_API_TOKEN,
 
-  OPENAI_API_KEY: cleanEnvString(
-    process.env.OPENAI_API_KEY || process.env.GITHUB_TOKEN,
+  OPENROUTER_API_KEY: cleanEnvString(process.env.OPENROUTER_API_KEY),
+  OPENROUTER_BASE_URL: cleanEnvString(
+    process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
   ),
-  OPENAI_BASE_URL: cleanEnvString(
-    process.env.OPENAI_BASE_URL ||
-      "https://models.inference.ai.azure.com",
-  ),
-  OPENAI_MODEL: process.env.OPENAI_MODEL || "gpt-4o-mini",
+  OPENROUTER_MODEL:
+    process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free",
 
   GEMINI_API_KEY: cleanEnvString(
     process.env.GEMINI_API_KEY ||
@@ -69,7 +67,15 @@ const env = {
 
   PAYMENT_QR_FILE_PATH: process.env.PAYMENT_QR_FILE_PATH || "./assets/qr.png",
   FINE_AMOUNT: Number(process.env.DAILY_FINE_AMOUNT || "10000"),
-  CHATBOT_ENABLED: toBoolean(process.env.CHATBOT_ENABLED, true),
+  // CHATBOT_ENABLED chỉ còn là giá trị mặc định chung cho DSU_ENABLED / JIRA_ENABLED.
+  DSU_ENABLED: toBoolean(
+    process.env.DSU_ENABLED,
+    toBoolean(process.env.CHATBOT_ENABLED, true),
+  ),
+  JIRA_ENABLED: toBoolean(
+    process.env.JIRA_ENABLED,
+    toBoolean(process.env.CHATBOT_ENABLED, true),
+  ),
 
   PENALTY_STATE_FILE: path.resolve(
     process.cwd(),
@@ -89,34 +95,33 @@ const env = {
 };
 
 function validateEnv() {
-  if (!env.CHATBOT_ENABLED) {
-    if (!env.DISCORD_BOT_TOKEN) {
-      throw new Error("Missing environment variable: DISCORD_BOT_TOKEN");
-    }
+  const required = ["DISCORD_BOT_TOKEN"];
 
-    return;
+  if (env.DSU_ENABLED) {
+    required.push(
+      "DISCORD_DAILY_CHANNEL_ID",
+
+      "CONFLUENCE_BASE_URL",
+      "CONFLUENCE_PAGE_ID",
+      "CONFLUENCE_EMAIL",
+      "CONFLUENCE_API_TOKEN",
+    );
   }
 
-  const required = [
-    "DISCORD_BOT_TOKEN",
-    "DISCORD_DAILY_CHANNEL_ID",
+  if (env.JIRA_ENABLED) {
+    required.push(
+      "DISCORD_MEETING_NOTES_CHANNEL_ID",
+      "GEMINI_API_KEY",
 
-    "CONFLUENCE_BASE_URL",
-    "CONFLUENCE_PAGE_ID",
-    "CONFLUENCE_EMAIL",
-    "CONFLUENCE_API_TOKEN",
-
-    "DISCORD_MEETING_NOTES_CHANNEL_ID",
-    "GEMINI_API_KEY",
-
-    "JIRA_BASE_URL",
-    "JIRA_EMAIL",
-    "JIRA_API_TOKEN",
-    "JIRA_PROJECT_KEY",
-    "JIRA_BOARD_ID",
-    "JIRA_TARGET_SPRINT_ID",
-    "JIRA_STORY_POINT_FIELD",
-  ];
+      "JIRA_BASE_URL",
+      "JIRA_EMAIL",
+      "JIRA_API_TOKEN",
+      "JIRA_PROJECT_KEY",
+      "JIRA_BOARD_ID",
+      "JIRA_TARGET_SPRINT_ID",
+      "JIRA_STORY_POINT_FIELD",
+    );
+  }
 
   const missing = required.filter((key) => {
     const value = env[key];
