@@ -63,22 +63,13 @@ function buildTaskFromRawAndGenerated(rawTask, generatedTask) {
 function validateDraftBeforeConfirm(draft) {
   const task = draft.task;
 
-  if (!task.assigneeDiscordId) {
-    return "Task này chưa tag assignee Discord.";
-  }
+  // Assignee, story point và deadline là tùy chọn: cho phép tạo task nháp trước, bổ sung trên Jira sau.
+  if (task.assigneeDiscordId) {
+    const member = getJiraMemberByDiscordId(task.assigneeDiscordId);
 
-  const member = getJiraMemberByDiscordId(task.assigneeDiscordId);
-
-  if (!member) {
-    return `Chưa map Discord ID ${task.assigneeDiscordId} sang Jira accountId trong src/config/jiraMembers.js.`;
-  }
-
-  if (!task.storyPoint && task.storyPoint !== 0) {
-    return "Task này chưa có story point.";
-  }
-
-  if (!task.dueDate) {
-    return "Task này chưa có deadline.";
+    if (!member) {
+      return `Chưa map Discord ID ${task.assigneeDiscordId} sang Jira accountId trong src/config/jiraMembers.js.`;
+    }
   }
 
   if (!task.title) {

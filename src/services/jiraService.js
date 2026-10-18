@@ -65,9 +65,11 @@ async function moveIssuesToSprint(issueKeys) {
 }
 
 async function createParentTask(task) {
-  const member = getJiraMemberByDiscordId(task.assigneeDiscordId);
+  const member = task.assigneeDiscordId
+    ? getJiraMemberByDiscordId(task.assigneeDiscordId)
+    : null;
 
-  if (!member) {
+  if (task.assigneeDiscordId && !member) {
     throw new Error(
       `Missing Jira accountId for Discord user ${task.assigneeDiscordId}`
     );
@@ -80,13 +82,21 @@ async function createParentTask(task) {
     summary: task.title,
     description: buildJiraDescriptionADF(task),
     issuetype: getParentIssueType(),
-    assignee: {
-      id: member.jiraAccountId,
-    },
-    duedate: task.dueDate,
   };
 
-  fields[env.JIRA_STORY_POINT_FIELD] = task.storyPoint;
+  if (member) {
+    fields.assignee = {
+      id: member.jiraAccountId,
+    };
+  }
+
+  if (task.dueDate) {
+    fields.duedate = task.dueDate;
+  }
+
+  if (task.storyPoint !== null && task.storyPoint !== undefined && task.storyPoint !== "") {
+    fields[env.JIRA_STORY_POINT_FIELD] = task.storyPoint;
+  }
 
   return createIssue(fields);
 }
